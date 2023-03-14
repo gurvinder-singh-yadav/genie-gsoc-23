@@ -1,1 +1,1 @@
-# genie-gsoc-23
+# genie
