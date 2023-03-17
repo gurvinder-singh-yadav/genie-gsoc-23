@@ -1,2 +1,3 @@
 Data/raw/*.hdf5
 Data/processed/*.hdf5
+Data/raw/*.net

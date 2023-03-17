@@ -3,18 +3,40 @@ import pytorch_lightning as pl
 import torch.nn.functional as F
 from torch import optim
     
+import h5py
+from torch.utils.data import Dataset, DataLoader
+import torch
+import numpy as np
+import pytorch_lightning as pl
+from torch import nn as nn, optim
+import torch.nn.functional as F
+import multiprocessing as mp
+import matplotlib.pyplot as plt
+
+
 class Encoder(nn.Module):
-    def __init__(self) -> None:
+    def __init__(self, in_dim = 3, latent_dim = 6, out_dim = 3, kernel = 3) -> None:
         super().__init__()
+        self.in_dim = in_dim
+        self.latent_dim = latent_dim
+        self.out_dim = out_dim
+        self.kernel = kernel
         self.encoder = nn.Sequential(
             ## encoding layers
-            nn.Conv2d(in_channels=3, out_channels=9, kernel_size=3, stride=2, padding=1),
-            nn.MaxPool2d(kernel_size=2, padding=0),
-            nn.Conv2d(in_channels=9, out_channels=14, kernel_size=3, stride=1, padding=1),
-            nn.MaxPool2d(kernel_size=2, padding=0),
-            nn.Conv2d(in_channels=14, out_channels=4, kernel_size=3, stride=1, padding=1),
-            nn.MaxPool2d(kernel_size=2, padding=0),
-            nn.Conv2d(in_channels=4, out_channels=1, kernel_size=3, stride=1, padding=1)
+            # PrintDim(),
+            nn.Conv2d(in_channels=self.in_dim, out_channels=self.latent_dim * 3, kernel_size=self.kernel, stride=1, padding=1),
+            # PrintDim(),
+            nn.MaxPool2d(kernel_size=2, padding=1),
+            # PrintDim(),
+            nn.Conv2d(in_channels=self.latent_dim * 3, out_channels=self.latent_dim * 2, kernel_size=self.kernel, padding=1),
+            # PrintDim(),
+            nn.MaxPool2d(kernel_size=2, padding=1),
+            # PrintDim(),
+            nn.Conv2d(in_channels=self.latent_dim * 2, out_channels=self.latent_dim, kernel_size=self.kernel, stride=1, padding=1),
+            # PrintDim(),
+            nn.MaxPool2d(kernel_size=2, padding=1),
+            # PrintDim(),
+            nn.Conv2d(in_channels=self.latent_dim, out_channels=self.out_dim, kernel_size=self.kernel, stride=1, padding=1)
             
         )
     
@@ -22,27 +44,40 @@ class Encoder(nn.Module):
         encoded = self.encoder(x)
         return encoded
     
-class Decoder(nn.Module):
+class PrintDim(nn.Module):
     def __init__(self) -> None:
         super().__init__()
+    def forward(self, x):
+        print(x.shape)
+        print("-" * 50)
+        return x
+    
+class Decoder(nn.Module):
+    def __init__(self, in_dim = 3, latent_dim = 6, out_dim = 3, kernel = 3) -> None:
+        super().__init__()
+        self.in_dim = in_dim
+        self.latent_dim = latent_dim
+        self.out_dim = out_dim
+        self.kernel = kernel
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(in_channels=1, out_channels=4, kernel_size=3, stride=2),
-            nn.ConvTranspose2d(in_channels=4, out_channels=14, kernel_size=2, stride=2, output_padding=1),
-            nn.ConvTranspose2d(in_channels=14, out_channels=9, kernel_size=3, stride=2),
-            nn.ConvTranspose2d(in_channels=9, out_channels=3, kernel_size=1, stride=2)
+            # PrintDim(),
+            nn.ConvTranspose2d(in_channels=self.in_dim, out_channels=self.latent_dim * 3, kernel_size=self.kernel, stride=2, padding=1),
+            # PrintDim(),
+            nn.ConvTranspose2d(in_channels=self.latent_dim * 3, out_channels=self.latent_dim * 2, kernel_size=self.kernel, stride=2, padding=2),
+            # PrintDim(),
+            nn.ConvTranspose2d(in_channels=self.latent_dim * 2, out_channels=self.out_dim, kernel_size=self.kernel, stride=2, padding=1),
+            # PrintDim(),
         )
     def forward(self, x):
         reconstructed = self.decoder(x)
         return reconstructed
     
-
 class AutoEncoder(pl.LightningModule):
-    def __init__(self,
-                 ):
+    def __init__(self, encoder_params, decoder_params):
         super().__init__()
+        self.encoder = Encoder(*encoder_params)
+        self.decoder = Decoder(*decoder_params)
         self.save_hyperparameters()
-        self.encoder = Encoder()
-        self.decoder = Decoder()
 
     def forward(self, x):
         z = self.encoder(x)
@@ -52,7 +87,7 @@ class AutoEncoder(pl.LightningModule):
         x = batch
         x_hat = self.forward(x)
         loss = F.mse_loss(x, x_hat, reduction='none')
-        loss = loss.sum(dim=[1,2,3]).mean(dim=[0])
+        # loss = loss.sum().mean()
         return loss
     def configure_optimizers(self):
         optimiser = optim.Adam(self.parameters(), lr = 1e-3)
@@ -66,12 +101,12 @@ class AutoEncoder(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         loss = self._get_reconstruction_loss(batch)
         self.log("train_loss", loss)
-        return loss
+        return loss.item()
     def validation_step(self, batch, batch_idx):
         loss = self._get_reconstruction_loss(batch)
         self.log("val_loss", loss)
-        return loss
+        return loss.item()
     def test_step(self, batch, batch_idx):
         loss = self._get_reconstruction_loss(batch)
         self.log("test_loss", loss)
-        return loss
+        return loss.item()

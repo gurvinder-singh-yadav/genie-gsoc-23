@@ -1,4 +1,4 @@
-from torch.utils.data import IterableDataset, Dataset
+from torch.utils.data import IterableDataset, Dataset, random_split
 from torch import from_numpy
 import numpy as np
 from itertools import cycle
@@ -43,3 +43,24 @@ class QuarkDataset(Dataset):
         x = from_numpy(np.array([x[..., i] for i in range(3)]))
         return x
         
+def uncompress_dataset(raw_path,  processed_path):
+    with h5py.File(raw_path, 'r') as r, h5py.File(processed_path, 'w') as p:
+        keys = list(r.keys())
+        total_events = r[keys[0]].shape[0]
+        for key in keys:
+            if len(r[key].shape) > 1:
+                chunk_shape = tuple([6000] + list(r[key].shape[1:]))
+            else:
+                chunk_shape = (6000,)
+            p.create_dataset(key, shape=r[key].shape, chunks= chunk_shape)
+            for i in range(0, total_events, 6000):
+                stop_idx = min(i+6000, total_events)
+                p[key][i:stop_idx] = r[key][i:stop_idx]
+
+def train_val_test_split(dataset, train = 0.7, val = 0.1, test = 0.2):
+    train_data, val_data, test_data = random_split(dataset, [0.6, 0.2, 0.2])
+    datasets = {}
+    datasets['train'] = train_data
+    datasets['val'] = val_data
+    datasets['test'] = test_data
+    return datasets
