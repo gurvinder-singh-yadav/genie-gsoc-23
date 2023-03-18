@@ -1,8 +1,0 @@
-encoder_params:
-- 3
-- 7
-- 4
-decoder_params:
-- 4
-- 7
-- 3

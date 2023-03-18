@@ -1,17 +1,8 @@
 from torch import nn 
 import pytorch_lightning as pl
 import torch.nn.functional as F
-from torch import optim
-    
-import h5py
-from torch.utils.data import Dataset, DataLoader
-import torch
-import numpy as np
 import pytorch_lightning as pl
 from torch import nn as nn, optim
-import torch.nn.functional as F
-import multiprocessing as mp
-import matplotlib.pyplot as plt
 
 
 class Encoder(nn.Module):
@@ -80,14 +71,19 @@ class AutoEncoder(pl.LightningModule):
         self.save_hyperparameters()
 
     def forward(self, x):
+        x = x.reshape(-1, 1, 125, 125)
         z = self.encoder(x)
         x_hat = self.decoder(z)
         return x_hat
     def _get_reconstruction_loss(self, batch):
         x = batch
         x_hat = self.forward(x)
+        x = x.reshape(-1, 125, 125)
+        x_hat = x.reshape(-1, 125, 125)
         loss = F.mse_loss(x, x_hat, reduction='none')
-        # loss = loss.sum().mean()
+        # print(loss.mean(dim=1).mean(dim=0).shape)
+        loss = loss.sum(dim=[2]).shape#.sum(dim=1).mean()
+        print(loss)
         return loss
     def configure_optimizers(self):
         optimiser = optim.Adam(self.parameters(), lr = 1e-3)
@@ -101,12 +97,12 @@ class AutoEncoder(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         loss = self._get_reconstruction_loss(batch)
         self.log("train_loss", loss)
-        return loss.item()
+        return loss
     def validation_step(self, batch, batch_idx):
         loss = self._get_reconstruction_loss(batch)
         self.log("val_loss", loss)
-        return loss.item()
+        return loss
     def test_step(self, batch, batch_idx):
         loss = self._get_reconstruction_loss(batch)
         self.log("test_loss", loss)
-        return loss.item()
+        return loss
